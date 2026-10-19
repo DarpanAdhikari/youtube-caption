@@ -1,54 +1,117 @@
 # YouTube Transcript API
 
-FastAPI service that extracts a YouTube video's transcript (the **Show transcript** panel) and returns it as JSON: full verbatim text plus timestamped segments.
+A FastAPI service to extract YouTube video transcripts (from the "Show transcript" panel) and return them as structured JSON. It provides full verbatim text, timestamped segments, language discovery, and flexible querying (paging, time windows, and context).
 
-## Setup
+## Features
 
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-```
+- Extract transcripts from YouTube URLs or video IDs
+- Get available transcript languages for a video
+- Return full text or timestamped segments
+- Support for language prioritization (e.g., `ne,en`)
+- Paging with `offset`/`limit` and time-range filtering with `start`/`end` + `context`
+- In-memory caching per `(video, language)` for faster repeat requests
+- Interactive API docs via Swagger UI (`/docs`) and ReDoc (`/redoc`)
+- Ready for deployment on [Render](https://render.com/)
 
-## Run
+## Tech Stack
 
-```bash
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
+- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
+- [Uvicorn](https://www.uvicorn.org/) - ASGI server
+- [Gunicorn](https://gunicorn.org/) - Production WSGI/ASGI process manager
+- [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) - Transcript extraction
 
-`--host 0.0.0.0` binds every interface, so the app is reachable through port
-forwarding, a VM, or another machine on the LAN. For local-only use,
-`--host 127.0.0.1` restricts it to this machine.
+## Quick Start
 
-Interactive docs: http://127.0.0.1:8000/docs
+### Local Development
 
-## Endpoints
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/DarpanAdhikari/youtube-caption.git
+   cd youtube-caption
+   ```
 
-### `GET /health`
+2. **Create and activate a virtual environment**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the server**
+   ```bash
+   uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+   ```
+
+5. **Open API docs**
+   - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+   - ReDoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+### Production (Render)
+
+This repo includes a `Procfile` and `render.yaml`. To deploy:
+
+1. Fork/clone this repo and push to GitHub.
+2. Go to [Render](https://render.com/) → New → Web Service → Connect your repo.
+3. Render will use the `render.yaml` config or auto-detect Python. Ensure build uses `pip install -r requirements.txt` and start command uses Gunicorn with Uvicorn workers (included in `Procfile`).
+4. Your service will be available at `https://your-service-name.onrender.com`.
+
+The app binds to `0.0.0.0:$PORT` as required by Render.
+
+## API Reference
+
+### Health Check
+
+**GET** `/health`
+
+Returns server status.
 
 ```json
-{"status": "ok"}
+{
+  "status": "ok"
+}
 ```
 
-### `GET /transcript`
+### Get Transcript
 
-| Param           | Required | Description                                                        |
-| --------------- | -------- | ------------------------------------------------------------------ |
-| `url`           | yes      | Full YouTube URL or a bare 11-char video ID                        |
-| `languages`     | no       | Comma-separated codes in priority order (default `ne,en`)          |
-| `offset`        | no       | Segment index to start from (paging), default `0`                  |
-| `limit`         | no       | Max segments to return (1–5000); omit for the whole transcript     |
-| `start` / `end` | no       | Time window in seconds; returns segments overlapping it            |
-| `context`       | no       | Extra segments kept before/after a time window (0–100)             |
-| `verbatim_only` | no       | Return only the joined text, with an empty `segments` list         |
+**GET** `/transcript`
+
+Extract transcript from a YouTube URL or video ID.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `url` | `string` | Yes | Full YouTube URL (e.g., `https://www.youtube.com/watch?v=dQw4w9WgXcQ`, `https://youtu.be/dQw4w9WgXcQ`) or bare 11-char video ID. |
+| `languages` | `string` | No | Comma-separated language codes in priority order (default: `ne,en`). Example: `en,fr,es`. |
+| `offset` | `integer` | No | Segment index to start from for paging (default: `0`, min: `0`). |
+| `limit` | `integer` | No | Max number of segments to return (min: `1`, max: `5000`). Omit to return all segments. |
+| `start` | `float` | No | Start time in seconds to filter segments (min: `0`). |
+| `end` | `float` | No | End time in seconds to filter segments (min: `0`). |
+| `context` | `integer` | No | Extra segments to include before/after the time window (min: `0`, max: `100`, default: `0`). |
+| `verbatim_only` | `boolean` | No | If `true`, returns only the joined verbatim text with an empty `segments` array (default: `false`). |
+
+#### Examples
 
 ```bash
-curl "http://127.0.0.1:8000/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-curl "http://127.0.0.1:8000/transcript?url=https://youtu.be/dQw4w9WgXcQ&languages=ne,en"
-curl "http://127.0.0.1:8000/transcript?url=dQw4w9WgXcQ&offset=300&limit=300"   # next page
-curl "http://127.0.0.1:8000/transcript?url=dQw4w9WgXcQ&start=60&end=90&context=2"
+# Get full transcript
+curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ"
+
+# With specific language priority
+curl "https://your-service.onrender.com/transcript?url=https://youtu.be/dQw4w9WgXcQ&languages=en"
+
+# Paginated results
+curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&offset=10&limit=20"
+
+# Time window with context
+curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&start=60&end=90&context=2"
+
+# Verbatim text only
+curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&verbatim_only=true"
 ```
 
-Response:
+#### Response
 
 ```json
 {
@@ -57,9 +120,9 @@ Response:
   "language": "English",
   "language_code": "en",
   "is_generated": false,
-  "verbatim": "full joined transcript text ...",
+  "verbatim": "Never gonna give you up...",
   "segments": [
-    {"start": 1.36, "duration": 1.68, "text": "[♪♪♪]"}
+    { "start": 0.0, "duration": 3.0, "text": "We're no strangers to love" }
   ],
   "normalized": null,
   "changes": null,
@@ -71,58 +134,84 @@ Response:
 }
 ```
 
-`normalized` / `changes` are reserved for the future Nepali normalization pipeline.
+**Notes:**
+- `verbatim` is populated only on unpaged, untimed requests (or when `verbatim_only=true`). For paged/time-windowed responses, it's typically omitted/empty to keep payloads small.
+- `total_segments`, `duration`, and `has_more` always describe the entire transcript, not the returned window.
+- `normalized` and `changes` are reserved for future Nepali normalization features.
 
-`verbatim` is only populated on an unpaged, untimed request (or with `verbatim_only=true`);
-paged and time-window responses leave it empty so a five-hour transcript is never
-serialised as a string just to return one window. `total_segments`, `duration` and
-`has_more` always describe the **whole** video, not the returned window. The parsed
-transcript is cached in memory per `(video, language)` for an hour, so the first request
-hits YouTube and the following pages are served from cache.
+### Get Transcript by Video ID
 
-### `GET /transcript/{video_id}`
+**GET** `/transcript/{video_id}`
 
-Same as above, with the video ID in the path:
+Same as `/transcript`, but pass the video ID directly in the path.
 
 ```bash
-curl "http://127.0.0.1:8000/transcript/dQw4w9WgXcQ"
+curl "https://your-service.onrender.com/transcript/dQw4w9WgXcQ?languages=en"
 ```
 
-### `GET /languages`
+### List Available Languages
 
-Lists every transcript available for a video (use this when `404 no_transcript_found` occurs):
+**GET** `/languages`
+
+Get all available transcript languages for a given video.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `url` | `string` | Yes | YouTube URL or video ID. |
 
 ```bash
-curl "http://127.0.0.1:8000/languages?url=dQw4w9WgXcQ"
+curl "https://your-service.onrender.com/languages?url=dQw4w9WgXcQ"
 ```
+
+#### Response
 
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
   "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   "transcripts": [
-    {"language": "English", "language_code": "en", "is_generated": false, "is_translatable": true}
+    {
+      "language_code": "en",
+      "language": "English",
+      "is_generated": false
+    },
+    {
+      "language_code": "ne",
+      "language": "Nepali",
+      "is_generated": false
+    }
   ]
 }
 ```
 
-## Errors
+## Error Handling
 
-All errors return `{"detail": "...", "error_type": "..."}`.
+Errors are returned as JSON with `detail` and `error_type`:
 
-| HTTP | `error_type`           | Meaning                                     |
-| ---- | ---------------------- | ------------------------------------------- |
-| 400  | `invalid_url`          | Could not extract a video ID                |
-| 400  | `invalid_video_id`     | YouTube rejected the ID                     |
-| 404  | `no_transcript_found`  | No transcript in the requested languages    |
-| 404  | `transcript_unavailable` | Video/transcripts disabled, private, etc. |
-| 502  | `fetch_failed`         | YouTube responded but retrieval failed      |
-| 503  | `youtube_blocked`      | YouTube is IP-blocking this server          |
+```json
+{
+  "detail": "Could not extract a video id from: invalid-url",
+  "error_type": "invalid_url"
+}
+```
 
-## Notes
+Common error types: `invalid_url`, `invalid_video_id`, `no_transcript_found`, `transcript_unavailable`, `youtube_blocked`, `fetch_failed`, `validation_error`.
 
-- Supported URL forms: `watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`, or a bare video ID.
-- Bound to `0.0.0.0`, the API has no authentication — anyone who can reach the port can
-  use it. Forward only the port you need and keep it off the public internet.
-- YouTube blocks many cloud-provider IPs; if you hit `503 youtube_blocked`, route requests through a proxy (see `youtube-transcript-api` proxy docs).
-- This uses an undocumented YouTube endpoint, so behavior may change upstream.
+## Caching
+
+The service caches full transcripts in memory for **1 hour** per `(video_id, language_priority)`. This avoids repeated calls to YouTube for paged/range requests. The cache has a max size of 32 entries with LRU eviction.
+
+## Deployment Notes
+
+- **Port binding**: Must bind to `0.0.0.0:$PORT`. Both `Procfile` and `render.yaml` handle this.
+- **Process manager**: Uses `gunicorn` with `uvicorn.workers.UvicornWorker` for production performance.
+- **YouTube blocking**: If YouTube blocks requests from the server's IP, you'll get `youtube_blocked` (503). This is common on some cloud providers/shared IPs; proxies or PoToken handling may be needed depending on the video.
+- **Ephemeral filesystem**: No files are written to disk; cache is in-memory and resets on redeploy/restart (expected on Render free tier).
+
+## Contributing
+
+Contributions are welcome! Please feel free to open issues or submit pull requests.
+
+## License
+
+This project is open-source and available under the MIT License.
