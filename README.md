@@ -1,117 +1,69 @@
 # YouTube Transcript API
 
-A FastAPI service to extract YouTube video transcripts (from the "Show transcript" panel) and return them as structured JSON. It provides full verbatim text, timestamped segments, language discovery, and flexible querying (paging, time windows, and context).
+A free, open-source REST API that extracts YouTube video transcripts and returns them as clean, structured JSON. Perfect for building apps, scripts, or browser extensions that need access to YouTube captions.
 
-## Features
+## What This Is
 
-- Extract transcripts from YouTube URLs or video IDs
-- Get available transcript languages for a video
-- Return full text or timestamped segments
-- Support for language prioritization (e.g., `ne,en`)
-- Paging with `offset`/`limit` and time-range filtering with `start`/`end` + `context`
-- In-memory caching per `(video, language)` for faster repeat requests
-- Interactive API docs via Swagger UI (`/docs`) and ReDoc (`/redoc`)
-- Ready for deployment on [Render](https://render.com/)
+This API retrieves transcripts from YouTube's "Show transcript" feature and exposes them through simple HTTP endpoints. It returns:
 
-## Tech Stack
+- The full verbatim transcript text
+- Timestamped segments (start time, duration, and text)
+- Available transcript languages for any video
+- Flexible filtering, paging, and time-window queries
 
-- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
-- [Uvicorn](https://www.uvicorn.org/) - ASGI server
-- [Gunicorn](https://gunicorn.org/) - Production WSGI/ASGI process manager
-- [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) - Transcript extraction
+## Live Demo
 
-## Quick Start
+Once deployed, you can try it at: `https://your-service-name.onrender.com`
 
-### Local Development
+Interactive API documentation is available at `/docs` (Swagger UI) and `/redoc` (ReDoc).
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/DarpanAdhikari/youtube-caption.git
-   cd youtube-caption
-   ```
+## How It Works
 
-2. **Create and activate a virtual environment**
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+1. **Send a request** with a YouTube URL or video ID to one of the endpoints.
+2. **Fetches the transcript** using `youtube-transcript-api` to retrieve available captions from YouTube.
+3. **Caches intelligently** - full transcripts are cached in memory for 1 hour per (video + language priority), so repeated requests and pagination don't hit YouTube again.
+4. **Returns structured JSON** with transcript data, metadata, and pagination info.
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+This approach avoids scraping HTML directly and works with most publicly available transcripts (auto-generated and manual captions where accessible).
 
-4. **Run the server**
-   ```bash
-   uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-   ```
-
-5. **Open API docs**
-   - Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-   - ReDoc: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-
-### Production (Render)
-
-This repo includes a `Procfile` and `render.yaml`. To deploy:
-
-1. Fork/clone this repo and push to GitHub.
-2. Go to [Render](https://render.com/) → New → Web Service → Connect your repo.
-3. Render will use the `render.yaml` config or auto-detect Python. Ensure build uses `pip install -r requirements.txt` and start command uses Gunicorn with Uvicorn workers (included in `Procfile`).
-4. Your service will be available at `https://your-service-name.onrender.com`.
-
-The app binds to `0.0.0.0:$PORT` as required by Render.
-
-## API Reference
+## API Usage
 
 ### Health Check
 
-**GET** `/health`
-
-Returns server status.
+```bash
+GET /health
+```
 
 ```json
-{
-  "status": "ok"
-}
+{ "status": "ok" }
 ```
 
 ### Get Transcript
 
-**GET** `/transcript`
-
-Extract transcript from a YouTube URL or video ID.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `url` | `string` | Yes | Full YouTube URL (e.g., `https://www.youtube.com/watch?v=dQw4w9WgXcQ`, `https://youtu.be/dQw4w9WgXcQ`) or bare 11-char video ID. |
-| `languages` | `string` | No | Comma-separated language codes in priority order (default: `ne,en`). Example: `en,fr,es`. |
-| `offset` | `integer` | No | Segment index to start from for paging (default: `0`, min: `0`). |
-| `limit` | `integer` | No | Max number of segments to return (min: `1`, max: `5000`). Omit to return all segments. |
-| `start` | `float` | No | Start time in seconds to filter segments (min: `0`). |
-| `end` | `float` | No | End time in seconds to filter segments (min: `0`). |
-| `context` | `integer` | No | Extra segments to include before/after the time window (min: `0`, max: `100`, default: `0`). |
-| `verbatim_only` | `boolean` | No | If `true`, returns only the joined verbatim text with an empty `segments` array (default: `false`). |
-
-#### Examples
-
 ```bash
-# Get full transcript
-curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ"
-
-# With specific language priority
-curl "https://your-service.onrender.com/transcript?url=https://youtu.be/dQw4w9WgXcQ&languages=en"
-
-# Paginated results
-curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&offset=10&limit=20"
-
-# Time window with context
-curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&start=60&end=90&context=2"
-
-# Verbatim text only
-curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&verbatim_only=true"
+GET /transcript?url=<youtube-url-or-id>
 ```
 
-#### Response
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `url` | string | _required_ | Full YouTube URL (`youtube.com/watch?v=...`, `youtu.be/...`) or 11-char video ID. |
+| `languages` | string | `ne,en` | Comma-separated language codes in priority order. Tries in order until it finds a match (e.g., `en,fr,es`). |
+| `offset` | integer | `0` | Skip this many segments (for pagination). |
+| `limit` | integer | _all_ | Return at most this many segments (1–5000). |
+| `start` | float | _none_ | Filter to segments overlapping from this time (seconds). |
+| `end` | float | _none_ | Filter to segments overlapping until this time (seconds). |
+| `context` | integer | `0` | Include extra segments before/after the time window (0–100). |
+| `verbatim_only` | boolean | `false` | Return only joined text; `segments` will be empty. |
+
+**Example:**
+
+```bash
+curl "https://your-api.example.com/transcript?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+```
+
+**Response (simplified):**
 
 ```json
 {
@@ -120,14 +72,10 @@ curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&verbatim_only
   "language": "English",
   "language_code": "en",
   "is_generated": false,
-  "verbatim": "Never gonna give you up...",
+  "verbatim": "...",
   "segments": [
     { "start": 0.0, "duration": 3.0, "text": "We're no strangers to love" }
   ],
-  "normalized": null,
-  "changes": null,
-  "offset": 0,
-  "limit": null,
   "total_segments": 61,
   "duration": 211.32,
   "has_more": false
@@ -135,83 +83,122 @@ curl "https://your-service.onrender.com/transcript?url=dQw4w9WgXcQ&verbatim_only
 ```
 
 **Notes:**
-- `verbatim` is populated only on unpaged, untimed requests (or when `verbatim_only=true`). For paged/time-windowed responses, it's typically omitted/empty to keep payloads small.
-- `total_segments`, `duration`, and `has_more` always describe the entire transcript, not the returned window.
-- `normalized` and `changes` are reserved for future Nepali normalization features.
+- For paged or time-windowed requests, `verbatim` is typically empty to keep responses lightweight.
+- `total_segments`, `duration`, and `has_more` always reflect the **entire** transcript, not just the returned slice.
 
 ### Get Transcript by Video ID
 
-**GET** `/transcript/{video_id}`
-
-Same as `/transcript`, but pass the video ID directly in the path.
-
 ```bash
-curl "https://your-service.onrender.com/transcript/dQw4w9WgXcQ?languages=en"
+GET /transcript/{video_id}
 ```
+
+Same as above, but pass the video ID in the URL path.
 
 ### List Available Languages
 
-**GET** `/languages`
-
-Get all available transcript languages for a given video.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `url` | `string` | Yes | YouTube URL or video ID. |
-
 ```bash
-curl "https://your-service.onrender.com/languages?url=dQw4w9WgXcQ"
+GET /languages?url=<youtube-url-or-id>
 ```
 
-#### Response
+Returns all transcripts YouTube makes available for a video.
 
 ```json
 {
   "video_id": "dQw4w9WgXcQ",
   "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   "transcripts": [
-    {
-      "language_code": "en",
-      "language": "English",
-      "is_generated": false
-    },
-    {
-      "language_code": "ne",
-      "language": "Nepali",
-      "is_generated": false
-    }
+    { "language_code": "en", "language": "English", "is_generated": false },
+    { "language_code": "ne", "language": "Nepali", "is_generated": false }
   ]
 }
 ```
 
-## Error Handling
+## Use With the Browser Extension
 
-Errors are returned as JSON with `detail` and `error_type`:
+If you want to use this API directly in your browser, check out the official companion extension:
 
-```json
-{
-  "detail": "Could not extract a video id from: invalid-url",
-  "error_type": "invalid_url"
-}
+**[YouTube Caption Extension](https://github.com/DarpanAdhikari/youtube-caption-extention.git)**
+
+It works with any self-hosted instance of this API, making it easy to fetch, view, or copy YouTube captions right from the page.
+
+## Self-Hosting
+
+This API is designed to be easy to self-host. It's deployment-ready for [Render](https://render.com/), but you can run it anywhere that supports Python/ASGI (Railway, Fly.io, DigitalOcean App Platform, etc.).
+
+### Requirements
+
+- Python 3.10+
+- Internet access to reach YouTube
+- A host that can bind to the port provided via `$PORT` (cloud platforms usually set this)
+
+### Local Development
+
+```bash
+# Clone and setup
+git clone https://github.com/DarpanAdhikari/youtube-caption.git
+cd youtube-caption
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run dev server
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Common error types: `invalid_url`, `invalid_video_id`, `no_transcript_found`, `transcript_unavailable`, `youtube_blocked`, `fetch_failed`, `validation_error`.
+### Deploy on Render
 
-## Caching
+This repo includes `Procfile` and `render.yaml`. On Render:
 
-The service caches full transcripts in memory for **1 hour** per `(video_id, language_priority)`. This avoids repeated calls to YouTube for paged/range requests. The cache has a max size of 32 entries with LRU eviction.
+1. Create a new Web Service and connect this repository
+2. Render will automatically install dependencies and start with Gunicorn + Uvicorn workers
+3. The app binds to `0.0.0.0:$PORT` as required
 
-## Deployment Notes
+No extra configuration is needed out of the box.
 
-- **Port binding**: Must bind to `0.0.0.0:$PORT`. Both `Procfile` and `render.yaml` handle this.
-- **Process manager**: Uses `gunicorn` with `uvicorn.workers.UvicornWorker` for production performance.
-- **YouTube blocking**: If YouTube blocks requests from the server's IP, you'll get `youtube_blocked` (503). This is common on some cloud providers/shared IPs; proxies or PoToken handling may be needed depending on the video.
-- **Ephemeral filesystem**: No files are written to disk; cache is in-memory and resets on redeploy/restart (expected on Render free tier).
+## Technical Details
+
+- **Framework**: FastAPI (async, with proper error handling and OpenAPI schema)
+- **Caching**: In-memory LRU cache (max 32 entries, 1h TTL). Each worker maintains its own cache.
+- **Error Handling**: Consistent JSON errors with descriptive `error_type` values (e.g., `invalid_url`, `no_transcript_found`, `youtube_blocked`, `transcript_unavailable`, `fetch_failed`).
+- **Limits**: `limit` capped at 5000 segments; `context` capped at 100 segments to prevent oversized responses.
+- **Privacy**: No tracking, no logging of URLs by default, and no persistent storage. Requests go directly from your server to YouTube.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to open issues or submit pull requests.
+We welcome contributions from everyone! Whether it's fixing bugs, improving docs, or adding features, your help is appreciated.
+
+### How to Contribute
+
+1. **Fork** the repository
+2. **Create a branch**: `git checkout -b feature/your-feature-name`
+3. **Make your changes**: Keep them focused and follow existing code style
+4. **Test locally**: Ensure the API still works as expected
+5. **Commit**: Write clear, concise commit messages
+6. **Push and open a PR**: Describe what you changed and why
+
+### Ideas for Contributions
+
+- Support for additional YouTube URL formats
+- Alternative transcript sources/fallbacks
+- Rate limiting or request throttling
+- Optional Redis-backed caching for multi-worker deployments
+- Better handling for region-locked/age-restricted cases
+
+## Known Limitations
+
+- Some videos may have no transcripts available (disabled by creator, or age-restricted).
+- YouTube may block requests from certain IP ranges (especially shared cloud IPs). If this happens, the API returns HTTP 503 with `error_type: youtube_blocked`.
+- Auto-generated transcripts vary by availability per video/language.
+- Caching is in-memory only; restarting the service clears the cache.
 
 ## License
 
-This project is open-source and available under the MIT License.
+This project is licensed under the MIT License. Feel free to use, modify, and distribute it as you see fit.
+
+## Acknowledgments
+
+Built with [youtube-transcript-api](https://github.com/jdepoix/youtube-transcript-api) by [jdepoix](https://github.com/jdepoix).
