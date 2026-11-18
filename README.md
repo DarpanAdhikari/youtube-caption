@@ -121,6 +121,18 @@ If you want to use this API directly in your browser, check out the official com
 
 It works with any self-hosted instance of this API, making it easy to fetch, view, or copy YouTube captions right from the page.
 
+## Long-Form Nepali Transcription
+
+Videos without captions can be transcribed separately with the resumable
+Whisper pipeline in [`transcript_pipeline/`](transcript_pipeline/README.md).
+It runs in Colab or on Kaggle, keeps completed chunks after a disconnect, and
+exports text, SRT, VTT, JSON, DOCX, and a ZIP bundle. See the
+[Colab notebook](notebooks/nepali_transcript_colab.ipynb) or the
+[Kaggle benchmark notebook](notebooks/nepali_parliament_benchmark_kaggle.ipynb).
+
+This pipeline is intentionally independent of the API: the existing captions
+endpoints and deployment are unchanged.
+
 ## Self-Hosting
 
 This API is designed to be easy to self-host. It's deployment-ready for [Render](https://render.com/), but you can run it anywhere that supports Python/ASGI (Railway, Fly.io, DigitalOcean App Platform, etc.).

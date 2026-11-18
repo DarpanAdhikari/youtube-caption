@@ -1,4 +1,8 @@
 .venv/
+.venv-pipeline/
 __pycache__/
 *.pyc
+.pytest_cache/
 .env
+DRP-Transcripts/
+benchmark/
